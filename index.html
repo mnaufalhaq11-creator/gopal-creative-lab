@@ -757,8 +757,7 @@ function openDetail(id) {
     <div class="brief-sec"><div class="brief-sec-title">🎬 Brief Konten ${isSniper?'Sniper':'Mambuwana'}</div></div>
     <div class="brief-sec"><div class="brief-sec-title">📁 Footage</div><div style="font-size:13px;color:#333;line-height:1.6">${c.footage||'Belum ada footage.'}</div></div>
     <div class="brief-sec"><div class="brief-sec-title">📐 Format video</div><div style="font-size:13px;color:#333;line-height:1.6">${c.format||'—'}</div></div>
-    <div class="brief-sec"><div class="brief-sec-title">🎯 Hook</div><div class="hook-box">${(c.hook||'—').replace(/
-/g,'<br>')}</div></div>
+    <div class="brief-sec"><div class="brief-sec-title">🎯 Hook</div><div class="hook-box">${(c.hook||'—').split(String.fromCharCode(10)).join('<br>')}</div></div>
     <div class="brief-sec"><div class="brief-sec-title">🎬 Opening (0–3 detik)</div><div style="font-size:13px;color:#333;line-height:1.6">${c.opening||'—'}</div></div>
     <div class="brief-sec"><div class="brief-sec-title">📝 Skrip narasi</div><div style="font-size:13px;color:#333;line-height:1.6">${c.skrip||'—'}</div></div>
     <div class="dp-divider"></div>
@@ -900,7 +899,7 @@ async function renderMessages(username, scroll) {
     const isMine = m.from_user === currentUser.username;
     const sender = allUsers[m.from_user] || {initials:'?',color:'#eee',text_color:'#333'};
     const time = new Date(m.created_at).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
-    const text = m.text.replace(/(https?:\/\/[^\s]+)/g, `<a href="$1" target="_blank" class="msg-link">$1</a>`);
+    const text = m.text.replace(/https?:\/\/[^\s]+/g, function(url){return '<a href="'+url+'" target="_blank" class="msg-link">'+url+'</a>';});
     return `<div class="msg-row ${isMine?'mine':''}">
       <div class="msg-avatar" style="background:${sender.color};color:${sender.text_color}">${sender.initials}</div>
       <div>
