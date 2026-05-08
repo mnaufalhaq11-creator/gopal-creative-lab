@@ -208,6 +208,8 @@ tr:hover .row-drag-handle{opacity:1}
 .acc-btn{font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid var(--border);cursor:pointer;font-weight:600;font-family:inherit;background:var(--white);color:var(--text2)}
 .acc-btn.on.sniper{background:var(--green-bg);color:var(--green-text);border-color:var(--green-bg)}
 .acc-btn.on.mambu{background:var(--purple-bg);color:var(--purple-text);border-color:var(--purple-bg)}
+.link-chip{display:inline-flex;align-items:center;gap:5px;background:var(--blue-bg);color:var(--blue-text);border-radius:6px;padding:4px 10px;font-size:12px;font-weight:600;text-decoration:none;margin:2px 4px 2px 0;border:1px solid #c0d8f5;cursor:pointer;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.link-chip:hover{background:#d0e8fb;border-color:#a0c4ee}
 /* CONFIRM MODAL */
 .confirm-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:400;align-items:center;justify-content:center}
 .confirm-overlay.show{display:flex}
@@ -574,7 +576,13 @@ async function cardDrop(e, status) {
 
 // ===== RENDER TABLE dengan INLINE EDIT & DRAG =====
 function renderTable() {
-  const filtered = getFiltered();
+  // Urutkan berdasarkan tanggal publish terdekat ke terjauh
+  const filtered = getFiltered().slice().sort((a,b) => {
+    if (!a.date && !b.date) return 0;
+    if (!a.date) return 1;
+    if (!b.date) return -1;
+    return new Date(a.date) - new Date(b.date);
+  });
   const byP = { yt: filtered.filter(c=>c.platform==='yt'), tt: filtered.filter(c=>c.platform==='tt'), ig: filtered.filter(c=>c.platform==='ig') };
   const labels = { yt:'YouTube', tt:'TikTokInstagramShort', ig:'Instagram Reels' };
   let html = '';
@@ -694,7 +702,9 @@ function openDetail(id) {
     </div>
     <div class="dp-divider"></div>
     <div class="brief-sec"><div class="brief-sec-title">🎬 Brief Konten ${isSniper?'Sniper':'Mambuwana'}</div></div>
-    <div class="brief-sec"><div class="brief-sec-title">📁 Footage</div><textarea class="dp-input" id="dp-footage" oninput="scheduleAutoSave()" placeholder="Deskripsi footage...">${c.footage||''}</textarea></div>
+    <div class="brief-sec"><div class="brief-sec-title">📁 Footage & Link Referensi</div>
+      <div id="dp-footage-links" style="margin-bottom:6px"></div>
+      <textarea class="dp-input" id="dp-footage" oninput="scheduleAutoSave();renderLinks('dp-footage','dp-footage-links')" placeholder="Paste link Drive atau referensi audio di sini...">${c.footage||''}</textarea></div>
     <div class="brief-sec"><div class="brief-sec-title">📐 Format video</div><input type="text" class="dp-input-line" id="dp-format" oninput="scheduleAutoSave()" placeholder="Horizontal / Vertikal..." value="${c.format||''}"></div>
     <div class="brief-sec"><div class="brief-sec-title">🎯 Hook</div><textarea class="dp-input" id="dp-hook" oninput="scheduleAutoSave()" placeholder="Tulis hook...">${c.hook||''}</textarea></div>
     <div class="brief-sec"><div class="brief-sec-title">🎬 Opening (0–3 detik)</div><textarea class="dp-input" id="dp-opening" oninput="scheduleAutoSave()" placeholder="Deskripsi opening...">${c.opening||''}</textarea></div>
@@ -705,6 +715,8 @@ function openDetail(id) {
     <div id="dp-save-status" style="font-size:11px;color:var(--text3);text-align:center;padding:8px 0;height:28px"></div>
     <div style="height:20px"></div>`;
   document.getElementById('detail-overlay').classList.add('show');
+  // Render clickable links
+  setTimeout(() => renderAllLinks(), 50);
 }
 
 let _saveTimer = null;
@@ -732,6 +744,32 @@ async function saveDetail() {
     if (error) { statusEl.textContent = '✗ Gagal menyimpan'; statusEl.style.color = '#A32D2D'; }
     else { await loadContents(); renderAll(); statusEl.textContent = '✓ Tersimpan'; statusEl.style.color = '#27500A'; setTimeout(()=>{ if(statusEl) statusEl.textContent=''; }, 2000); }
   }
+}
+
+function renderLinks(textareaId, containerId) {
+  const textarea = document.getElementById(textareaId);
+  const container = document.getElementById(containerId);
+  if (!textarea || !container) return;
+  const text = textarea.value;
+  const urlRegex = /https?:\/\/[^\s]+/g;
+  const urls = text.match(urlRegex) || [];
+  if (!urls.length) { container.innerHTML = ''; return; }
+  container.innerHTML = urls.map(url => {
+    let label = url;
+    if (url.includes('drive.google.com')) label = '📁 Google Drive';
+    else if (url.includes('docs.google.com')) label = '📄 Google Docs';
+    else if (url.includes('youtube.com') || url.includes('youtu.be')) label = '▶️ YouTube';
+    else if (url.includes('spotify.com')) label = '🎵 Spotify';
+    else if (url.includes('tiktok.com')) label = '🎵 TikTok';
+    else if (url.includes('instagram.com')) label = '📸 Instagram';
+    else { try { label = '🔗 ' + new URL(url).hostname; } catch(e) { label = '🔗 Link'; } }
+    return '<a href="'+url+'" target="_blank" class="link-chip" title="'+url+'">'+label+'</a>';
+  }).join('');
+}
+
+// Render links saat panel dibuka
+function renderAllLinks() {
+  renderLinks('dp-footage', 'dp-footage-links');
 }
 
 async function saveOrder() {
