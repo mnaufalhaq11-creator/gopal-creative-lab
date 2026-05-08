@@ -330,7 +330,7 @@ tr:hover .row-drag-handle{opacity:1}
 
 <!-- DETAIL PANEL -->
 <div class="detail-overlay" id="detail-overlay" onclick="closeDetailOverlay(event)">
-  <div class="detail-panel"><div class="dp-topbar"><span style="font-size:12px;color:var(--text3);font-weight:600" id="dp-breadcrumb">Project</span><button class="dp-close" onclick="closeDetail()">&#x2715;</button></div><div class="dp-body" id="dp-body"></div></div>
+  <div class="detail-panel"><div class="dp-topbar"><span style="font-size:12px;color:var(--text3);font-weight:600" id="dp-breadcrumb">Project</span><div style="display:flex;align-items:center;gap:6px"><button id="dp-del-btn" onclick="if(currentContent)confirmDelete(currentContent.id,currentContent.title)" style="width:28px;height:28px;border-radius:var(--radius);border:1px solid #f5c6c6;background:#FCEBEB;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;color:#791F1F" title="Hapus konten">🗑</button><button class="dp-close" onclick="closeDetail()">&#x2715;</button></div></div><div class="dp-body" id="dp-body"></div></div>
 </div>
 
 <!-- ADD MODAL -->
@@ -364,6 +364,13 @@ tr:hover .row-drag-handle{opacity:1}
       <button class="btn btn-danger" id="confirm-delete-btn">Hapus</button>
     </div>
   </div>
+</div>
+
+<!-- CONTEXT MENU -->
+<div id="ctx-menu" style="display:none;position:fixed;background:var(--white);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:500;min-width:160px;overflow:hidden">
+  <div id="ctx-open" onclick="contextAction('open')" style="padding:9px 16px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:8px" onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background=''">📄 Buka detail</div>
+  <div style="height:1px;background:var(--border)"></div>
+  <div id="ctx-delete" onclick="contextAction('delete')" style="padding:9px 16px;font-size:13px;cursor:pointer;color:var(--red-text);display:flex;align-items:center;gap:8px" onmouseover="this.style.background='var(--red-bg)'" onmouseout="this.style.background=''">🗑 Hapus konten</div>
 </div>
 
 <script>
@@ -423,7 +430,7 @@ async function loadAllUsers() {
   if (data) { allUsers = {}; data.forEach(u => allUsers[u.username] = u); }
 }
 async function loadContents() {
-  const { data } = await sb.from('contents').select('*').order('created_at', { ascending: false });
+  const { data } = await sb.from('contents').select('*').order('sort_order', { ascending: true });
   if (data) contents = data.map(c => ({ id:c.id, title:c.title, proj:c.proj, status:c.status, type:c.type, platform:c.platform, date:c.publish_date, narsum:c.narsum||'', footage:c.footage||'', format:c.format||'', hook:c.hook||'', opening:c.opening||'', skrip:c.skrip||'', cta:c.cta||'', revisi:c.revisi||'', insight:c.insight||'' }));
 }
 function setupRealtime() {
@@ -523,7 +530,12 @@ function pLabel(p) { return p==='yt'?'YouTube':p==='ig'?'Instagram':'TikTok+Reel
 function pShort(p) { return p==='yt'?'YT':p==='ig'?'IG':'TT+IG'; }
 function fmtDate(d) { if(!d) return '—'; const[y,m,dd]=d.split('-'); return dd+'/'+m+'/'+y; }
 
-function getStatusOpts(proj) { return proj==='sniper' ? ['Ide','Drafting','Filming','Editing','In review','Approved','Scheduled','Published'] : ['Ide','Cari Narasumber','Narasumber Deal','Take Video','Voice Over','Editing','Review','Dijadwalkan','Published']; }
+function getStatusOpts(proj) { 
+  if (proj==='sniper') return ['Ide','Drafting','Filming','Editing','In review','Approved','Scheduled','Published'];
+  if (proj==='mambu') return ['Ide','Cari Narasumber','Narasumber Deal','Take Video','Voice Over','Editing','Review','Dijadwalkan','Published'];
+  // All: gabungan semua status
+  return ['Ide','Drafting','Cari Narasumber','Narasumber Deal','Filming','Take Video','Voice Over','Editing','In review','Review','Approved','Dijadwalkan','Scheduled','Published'];
+}
 function getTypeOpts(proj) { return proj==='sniper' ? ['ANJANGSANA','KASIH SOLUSI','NGOPI TANI','short video','carousel'] : ['Investigasi','POV Aksi','Awareness','Edukasi']; }
 
 // ===== RENDER BOARD =====
@@ -534,7 +546,7 @@ function renderBoard() {
   document.getElementById('board-container').innerHTML = statuses.map(s => `
     <div class="col">
       <div class="col-head">${s}<span class="col-cnt">${cols[s].length}</span></div>
-      ${cols[s].map(c => `<div class="card" draggable="true" ondragstart="cardDragStart(event,'${c.id}')" ondragover="event.preventDefault()" ondrop="cardDrop(event,'${s}')" onclick="openDetail('${c.id}')">
+      ${cols[s].map(c => `<div class="card" draggable="true" ondragstart="cardDragStart(event,'${c.id}')" ondragover="event.preventDefault()" ondrop="cardDrop(event,'${s}')" onclick="openDetail('${c.id}')" oncontextmenu="event.preventDefault();showCardMenu(event,'${c.id}')">
         <button class="card-delete" onclick="event.stopPropagation();confirmDelete('${c.id}','${c.title.replace(/'/g,"\\'")}')">&#x2715;</button>
         <div class="card-line ${c.proj==='sniper'?'line-sniper':'line-mambu'}"></div>
         <div class="card-title">${c.title}</div>
@@ -547,7 +559,7 @@ function renderBoard() {
     </div>`).join('');
 }
 function cardDragStart(e, id) { dragSrcId = id; e.dataTransfer.effectAllowed = 'move'; }
-function cardDrop(e, status) {
+async function cardDrop(e, status) {
   e.preventDefault();
   if (!dragSrcId) return;
   const c = contents.find(x => x.id == dragSrcId);
@@ -601,7 +613,7 @@ async function inlineUpdate(id, field, value) {
 let dragRowId = null;
 function rowDragStart(e, id) { dragRowId = id; e.dataTransfer.effectAllowed = 'move'; e.currentTarget.classList.add('dragging-row'); }
 function rowDragOver(e) { e.preventDefault(); e.currentTarget.classList.add('drag-over-row'); }
-function rowDrop(e, targetId) {
+async function rowDrop(e, targetId) {
   e.preventDefault();
   e.currentTarget.classList.remove('drag-over-row');
   if (!dragRowId || dragRowId == targetId) { dragRowId = null; return; }
@@ -612,6 +624,8 @@ function rowDrop(e, targetId) {
   contents.splice(toIdx, 0, moved);
   dragRowId = null;
   renderTable(); renderBoard();
+  // Simpan urutan baru ke Supabase
+  await saveOrder();
 }
 
 // ===== RENDER CALENDAR =====
@@ -641,36 +655,43 @@ function openDetail(id) {
     <div class="dp-line ${isSniper?'line-sniper':'line-mambu'}"></div>
     <div class="dp-title">${c.title}</div>
     <div class="dp-props">
-      <span class="dp-prop-lbl">Status</span><select class="dp-select" onchange="currentContent.status=this.value">${statusOpts.map(o=>`<option ${c.status===o?'selected':''}>${o}</option>`).join('')}</select>
-      <span class="dp-prop-lbl">Tipe / Pilar</span><select class="dp-select" onchange="currentContent.type=this.value">${typeOpts.map(o=>`<option ${c.type===o?'selected':''}>${o}</option>`).join('')}</select>
+      <span class="dp-prop-lbl">Status</span><select class="dp-select" onchange="currentContent.status=this.value;scheduleAutoSave()">${statusOpts.map(o=>`<option ${c.status===o?'selected':''}>${o}</option>`).join('')}</select>
+      <span class="dp-prop-lbl">Tipe / Pilar</span><select class="dp-select" onchange="currentContent.type=this.value;scheduleAutoSave()">${typeOpts.map(o=>`<option ${c.type===o?'selected':''}>${o}</option>`).join('')}</select>
       <span class="dp-prop-lbl">Platform</span>
-      <select class="dp-select" onchange="currentContent.platform=this.value">
+      <select class="dp-select" onchange="currentContent.platform=this.value;scheduleAutoSave()">
         <option value="tt" ${c.platform==='tt'?'selected':''}>TikTok + Reels</option>
         <option value="yt" ${c.platform==='yt'?'selected':''}>YouTube</option>
         <option value="ig" ${c.platform==='ig'?'selected':''}>Instagram</option>
       </select>
-      <span class="dp-prop-lbl">Publish date</span><input type="date" class="dp-input-line" value="${c.date||''}" onchange="currentContent.date=this.value">
-      <span class="dp-prop-lbl">Narasumber</span><input type="text" class="dp-input-line" id="dp-narsum" value="${c.narsum||''}" placeholder="Nama / lokasi...">
+      <span class="dp-prop-lbl">Publish date</span><input type="date" class="dp-input-line" value="${c.date||''}" onchange="currentContent.date=this.value;scheduleAutoSave()">
+      <span class="dp-prop-lbl">Narasumber</span><input type="text" class="dp-input-line" id="dp-narsum" oninput="scheduleAutoSave()" value="${c.narsum||''}" placeholder="Nama / lokasi..." oninput="scheduleAutoSave()">
     </div>
     <div class="dp-divider"></div>
     <div class="brief-sec"><div class="brief-sec-title">🎬 Brief Konten ${isSniper?'Sniper':'Mambuwana'}</div></div>
-    <div class="brief-sec"><div class="brief-sec-title">📁 Footage</div><textarea class="dp-input" id="dp-footage" placeholder="Deskripsi footage...">${c.footage||''}</textarea></div>
-    <div class="brief-sec"><div class="brief-sec-title">📐 Format video</div><input type="text" class="dp-input-line" id="dp-format" placeholder="Horizontal / Vertikal..." value="${c.format||''}"></div>
-    <div class="brief-sec"><div class="brief-sec-title">🎯 Hook</div><textarea class="dp-input" id="dp-hook" placeholder="Tulis hook...">${c.hook||''}</textarea></div>
-    <div class="brief-sec"><div class="brief-sec-title">🎬 Opening (0–3 detik)</div><textarea class="dp-input" id="dp-opening" placeholder="Deskripsi opening...">${c.opening||''}</textarea></div>
-    <div class="brief-sec"><div class="brief-sec-title">📝 Skrip narasi</div><textarea class="dp-input" id="dp-skrip" style="min-height:100px" placeholder="Tulis skrip...">${c.skrip||''}</textarea></div>
+    <div class="brief-sec"><div class="brief-sec-title">📁 Footage</div><textarea class="dp-input" id="dp-footage" oninput="scheduleAutoSave()" placeholder="Deskripsi footage...">${c.footage||''}</textarea></div>
+    <div class="brief-sec"><div class="brief-sec-title">📐 Format video</div><input type="text" class="dp-input-line" id="dp-format" oninput="scheduleAutoSave()" placeholder="Horizontal / Vertikal..." value="${c.format||''}"></div>
+    <div class="brief-sec"><div class="brief-sec-title">🎯 Hook</div><textarea class="dp-input" id="dp-hook" oninput="scheduleAutoSave()" placeholder="Tulis hook...">${c.hook||''}</textarea></div>
+    <div class="brief-sec"><div class="brief-sec-title">🎬 Opening (0–3 detik)</div><textarea class="dp-input" id="dp-opening" oninput="scheduleAutoSave()" placeholder="Deskripsi opening...">${c.opening||''}</textarea></div>
+    <div class="brief-sec"><div class="brief-sec-title">📝 Skrip narasi</div><textarea class="dp-input" id="dp-skrip" oninput="scheduleAutoSave()" style="min-height:100px" placeholder="Tulis skrip...">${c.skrip||''}</textarea></div>
     <div class="dp-divider"></div>
-    <div class="brief-sec"><div class="brief-sec-title">🔁 Revisi</div>${c.revisi?`<div style="background:var(--amber-bg);border-radius:8px;padding:10px 12px;font-size:13px;color:var(--amber-text);margin-bottom:8px">${c.revisi}</div>`:''}<textarea class="dp-input" id="dp-revisi" placeholder="Catatan revisi...">${c.revisi||''}</textarea></div>
-    <div class="brief-sec"><div class="brief-sec-title">📊 Insight performa</div><input type="text" class="dp-input-line" id="dp-insight" placeholder="TikTok/YT/Instagram insight..." value="${c.insight||''}"></div>
-    <button class="dp-save" onclick="saveDetail()">Simpan perubahan</button>
-    <button class="dp-delete" onclick="confirmDelete('${c.id}','${c.title.replace(/'/g,"\\'")}');closeDetail()">🗑 Hapus konten ini</button>
-    <div style="height:30px"></div>`;
+    <div class="brief-sec"><div class="brief-sec-title">🔁 Revisi</div>${c.revisi?`<div style="background:var(--amber-bg);border-radius:8px;padding:10px 12px;font-size:13px;color:var(--amber-text);margin-bottom:8px">${c.revisi}</div>`:''}<textarea class="dp-input" id="dp-revisi" oninput="scheduleAutoSave()" placeholder="Catatan revisi...">${c.revisi||''}</textarea></div>
+    <div class="brief-sec"><div class="brief-sec-title">📊 Insight performa</div><input type="text" class="dp-input-line" id="dp-insight" oninput="scheduleAutoSave()" placeholder="TikTok/YT/Instagram insight..." value="${c.insight||''}"></div>
+    <div id="dp-save-status" style="font-size:11px;color:var(--text3);text-align:center;padding:8px 0;height:28px"></div>
+    <div style="height:20px"></div>`;
   document.getElementById('detail-overlay').classList.add('show');
 }
 
+let _saveTimer = null;
+function scheduleAutoSave() {
+  const el = document.getElementById('dp-save-status');
+  if (el) { el.textContent = 'Mengetik...'; el.style.color = 'var(--text3)'; }
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(() => saveDetail(), 1200);
+}
 async function saveDetail() {
   if (!currentContent) return;
-  const btn = document.querySelector('.dp-save'); btn.textContent = 'Menyimpan...'; btn.disabled = true;
+  const statusEl = document.getElementById('dp-save-status');
+  if (statusEl) { statusEl.textContent = 'Menyimpan...'; statusEl.style.color = 'var(--text3)'; }
   const g = id => { const el = document.getElementById(id); return el ? el.value : ''; };
   const update = {
     status: currentContent.status, type: currentContent.type, platform: currentContent.platform,
@@ -681,8 +702,20 @@ async function saveDetail() {
   };
   Object.assign(currentContent, { narsum:update.narsum, footage:update.footage, format:update.format, hook:update.hook, opening:update.opening, skrip:update.skrip, revisi:update.revisi, insight:update.insight });
   const { error } = await updateContentField(currentContent.id, update);
-  if (error) { btn.textContent = 'Gagal!'; btn.style.background = '#A32D2D'; setTimeout(()=>{btn.textContent='Simpan perubahan';btn.style.background='#1a1a1a';btn.disabled=false;},2000); }
-  else { await loadContents(); renderAll(); btn.textContent = 'Tersimpan ✓'; btn.style.background = '#27500A'; setTimeout(()=>{btn.textContent='Simpan perubahan';btn.style.background='#1a1a1a';btn.disabled=false;},1500); }
+  if (statusEl) {
+    if (error) { statusEl.textContent = '✗ Gagal menyimpan'; statusEl.style.color = '#A32D2D'; }
+    else { await loadContents(); renderAll(); statusEl.textContent = '✓ Tersimpan'; statusEl.style.color = '#27500A'; setTimeout(()=>{ if(statusEl) statusEl.textContent=''; }, 2000); }
+  }
+}
+
+async function saveOrder() {
+  // Update sort_order semua konten sesuai urutan array saat ini
+  const updates = contents.map((c, i) => 
+    sb.from('contents').update({sort_order: i + 1}).eq('id', c.id)
+  );
+  await Promise.all(updates);
+  // Update lokal juga
+  contents.forEach((c, i) => c.sort_order = i + 1);
 }
 
 async function updateContentField(id, fields) {
@@ -713,13 +746,14 @@ async function addContent() {
   const proj = document.getElementById('m-proj').value;
   if (!currentUser.access.includes(proj)) { alert('Kamu tidak punya akses ke project ini.'); return; }
   const plat = document.getElementById('m-platform').value;
+  const maxOrder = contents.length > 0 ? Math.max(...contents.map(c => c.sort_order||0)) : 0;
   const { data, error } = await sb.from('contents').insert({
     title, proj, status: document.getElementById('m-status').value, type: document.getElementById('m-type').value,
     platform: plat, publish_date: document.getElementById('m-date').value || null,
     narsum: document.getElementById('m-narsum').value, footage:'Belum ada footage.',
     format: plat==='yt'?'Horizontal (16:9) — YouTube':'Vertikal (9:16) — TikTok',
     hook:'', opening:'Animasi masuk 0.3 detik. SFX: deep woosh halus.', skrip:'', cta:'', revisi:'', insight:'',
-    created_by: currentUser.username
+    created_by: currentUser.username, sort_order: maxOrder + 1
   }).select().single();
   if (!error && data) {
     document.getElementById('add-modal').classList.remove('show');
@@ -806,6 +840,23 @@ async function renderManage() {
       </div>
     </div>`;
 }
+let _ctxId = null, _ctxTitle = null;
+function showCardMenu(e, id) {
+  const c = contents.find(x => x.id == id);
+  _ctxId = id; _ctxTitle = c ? c.title : '';
+  const menu = document.getElementById('ctx-menu');
+  menu.style.display = 'block';
+  menu.style.left = Math.min(e.clientX, window.innerWidth - 180) + 'px';
+  menu.style.top = Math.min(e.clientY, window.innerHeight - 100) + 'px';
+  setTimeout(() => document.addEventListener('click', closeCtxMenu, {once:true}), 10);
+}
+function closeCtxMenu() { document.getElementById('ctx-menu').style.display = 'none'; }
+function contextAction(action) {
+  closeCtxMenu();
+  if (action === 'open' && _ctxId) openDetail(_ctxId);
+  else if (action === 'delete' && _ctxId) confirmDelete(_ctxId, _ctxTitle);
+}
+
 async function toggleAccess(username, proj, btn) {
   const u = allUsers[username];
   const newAccess = u.access.includes(proj) ? u.access.filter(a=>a!==proj) : [...u.access, proj];
