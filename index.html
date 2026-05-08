@@ -218,7 +218,7 @@ tr:hover .row-drag-handle{opacity:1}
 </style>
 </head>
 <body>
-<div class="login-page" id="login-page">
+<div class="login-page" id="login-page" style="display:none">
   <div class="login-card">
     <div class="login-logo">
       <div class="login-logo-mark">G</div>
@@ -372,6 +372,31 @@ const SUPABASE_ANON_KEY = 'sb_publishable_weIw7jBh72glUXHTAS-UpQ_OkDu6Lmo';
 const sb = (window.supabase || window.Supabase).createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let currentUser = null, activeProject = 'all', currentContent = null, activeChatUser = null;
+
+// Auto-restore session jika ada
+async function restoreSession() {
+  try {
+    const saved = localStorage.getItem('gopal_user');
+    if (saved) {
+      const user = JSON.parse(saved);
+      // Verifikasi masih valid di Supabase
+      const { data } = await sb.from('users').select('*').eq('username', user.username).eq('password', user.password).single();
+      if (data) {
+        currentUser = data;
+        await loadAllUsers(); await loadContents(); initApp(); setupRealtime();
+        return true;
+      }
+    }
+  } catch(e) {}
+  return false;
+}
+// Jalankan restore saat load
+window.addEventListener('DOMContentLoaded', async () => {
+  const restored = await restoreSession();
+  if (!restored) {
+    document.getElementById('login-page').style.display = 'flex';
+  }
+});
 let allUsers = {}, contents = [], realtimeChannel = null;
 let dragSrcId = null, dragSrcIndex = null;
 
@@ -387,6 +412,7 @@ async function doLogin() {
     const { data, error } = await sb.from('users').select('*').eq('username', username).eq('password', pass).single();
     if (error || !data) { errEl.style.display = 'block'; loadEl.style.display = 'none'; btn.disabled = false; return; }
     currentUser = data; loadEl.style.display = 'none'; btn.disabled = false;
+    localStorage.setItem('gopal_user', JSON.stringify({username: data.username, password: data.password}));
     await loadAllUsers(); await loadContents(); initApp(); setupRealtime();
   } catch(e) { errEl.textContent = 'Gagal terhubung: ' + e.message; errEl.style.display = 'block'; loadEl.style.display = 'none'; btn.disabled = false; }
 }
@@ -414,6 +440,7 @@ function setupRealtime() {
 }
 function doLogout() {
   if (realtimeChannel) sb.removeChannel(realtimeChannel);
+  localStorage.removeItem('gopal_user');
   currentUser = null; activeChatUser = null;
   document.getElementById('main-app').style.display = 'none';
   document.getElementById('login-page').style.display = 'flex';
