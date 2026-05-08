@@ -294,7 +294,12 @@ tr:hover .row-drag-handle{opacity:1}
         <div id="view-calendar" style="display:none;flex:1;overflow:hidden">
           <div class="cal-wrap">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-              <span style="font-size:15px;font-weight:700">Mei 2026</span>
+              <div style="display:flex;align-items:center;gap:10px">
+                <button onclick="calPrev()" style="width:28px;height:28px;border:1px solid var(--border);border-radius:var(--radius);background:var(--white);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;color:var(--text2)">&#8249;</button>
+                <span id="cal-title" style="font-size:15px;font-weight:700;min-width:130px;text-align:center">Mei 2026</span>
+                <button onclick="calNext()" style="width:28px;height:28px;border:1px solid var(--border);border-radius:var(--radius);background:var(--white);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;color:var(--text2)">&#8250;</button>
+                <button onclick="calToday()" style="padding:4px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--white);cursor:pointer;font-size:11px;color:var(--text2);font-family:inherit;font-weight:500">Hari ini</button>
+              </div>
               <div style="display:flex;align-items:center;gap:14px">
                 <span style="display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600"><span style="width:9px;height:9px;border-radius:50%;background:var(--green);display:inline-block"></span>Sniper</span>
                 <span style="display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600"><span style="width:9px;height:9px;border-radius:50%;background:var(--purple);display:inline-block"></span>Mambuwana</span>
@@ -629,18 +634,39 @@ async function rowDrop(e, targetId) {
 }
 
 // ===== RENDER CALENDAR =====
+const MONTHS_ID = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+let calYear = 2026, calMonth = 4; // 0-indexed, 4 = Mei
+
 function renderCalendar() {
-  const filtered = getFiltered(), firstDay = new Date(2026,4,1).getDay();
+  const filtered = getFiltered();
+  const today = new Date();
+  const firstDay = new Date(calYear, calMonth, 1).getDay();
+  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+  const monthStr = String(calMonth + 1).padStart(2, '0');
+  const datePrefix = calYear + '-' + monthStr;
+
+  // Update title
+  const titleEl = document.getElementById('cal-title');
+  if (titleEl) titleEl.textContent = MONTHS_ID[calMonth] + ' ' + calYear;
+
   let cells = [];
   for (let i=0;i<firstDay;i++) cells.push(null);
-  for (let d=1;d<=31;d++) cells.push(d);
+  for (let d=1;d<=daysInMonth;d++) cells.push(d);
   while (cells.length%7!==0) cells.push(null);
+
+  const isToday = (d) => today.getFullYear()===calYear && today.getMonth()===calMonth && today.getDate()===d;
+
   document.getElementById('cal-grid').innerHTML = cells.map(d => {
     if (!d) return '<div class="cal-cell other"></div>';
-    const evs = filtered.filter(e => e.date && parseInt(e.date.split('-')[2])===d && e.date.startsWith('2026-05'));
-    return `<div class="cal-cell ${d===6?'today':''}"><div class="cal-num ${d===6?'today-num':''}">${d}</div>${evs.map(e=>`<div class="cal-ev ${e.proj==='sniper'?'ce-sniper':'ce-mambu'}" onclick="openDetail('${e.id}')" title="${e.title}">${e.title.slice(0,14)}…</div>`).join('')}</div>`;
+    const dayStr = String(d).padStart(2, '0');
+    const evs = filtered.filter(e => e.date && e.date === datePrefix + '-' + dayStr);
+    return `<div class="cal-cell ${isToday(d)?'today':''}"><div class="cal-num ${isToday(d)?'today-num':''}">${d}</div>${evs.map(e=>`<div class="cal-ev ${e.proj==='sniper'?'ce-sniper':'ce-mambu'}" onclick="openDetail('${e.id}')" title="${e.title}">${e.title.slice(0,16)}…</div>`).join('')}</div>`;
   }).join('');
 }
+
+function calPrev() { if(calMonth===0){calMonth=11;calYear--;}else{calMonth--;} renderCalendar(); }
+function calNext() { if(calMonth===11){calMonth=0;calYear++;}else{calMonth++;} renderCalendar(); }
+function calToday() { const t=new Date(); calYear=t.getFullYear(); calMonth=t.getMonth(); renderCalendar(); }
 
 function renderAll() { renderBoard(); renderTable(); renderCalendar(); }
 
