@@ -438,7 +438,7 @@ async function loadAllUsers() {
 }
 async function loadContents() {
   const { data } = await sb.from('contents').select('*').order('sort_order', { ascending: true });
-  if (data) contents = data.map(c => ({ id:c.id, title:c.title, proj:c.proj, status:c.status, type:c.type, platform:c.platform, date:c.publish_date, narsum:c.narsum||'', footage:c.footage||'', format:c.format||'', hook:c.hook||'', opening:c.opening||'', skrip:c.skrip||'', cta:c.cta||'', revisi:c.revisi||'', insight:c.insight||'' }));
+  if (data) contents = data.map(c => ({ id:c.id, title:c.title, proj:c.proj, status:c.status, type:c.type, platform:c.platform, date:c.publish_date, narsum:c.narsum||'', footage:c.footage||'', format:c.format||'', hook:c.hook||'', opening:c.opening||'', skrip:c.skrip||'', cta:c.cta||'', revisi:c.revisi||'', insight:c.insight||'', result:c.result||'', publink:c.publink||'', views:c.views||'', likes:c.likes||'', comments:c.comments||'', shares:c.shares||'', saves:c.saves||'', sort_order:c.sort_order||0 }));
 }
 function setupRealtime() {
   if (realtimeChannel) sb.removeChannel(realtimeChannel);
@@ -562,6 +562,7 @@ function renderBoard() {
           <span class="tag ${tTag(c.type)}">${c.type.length>9?c.type.slice(0,8)+'…':c.type}</span>
           <span class="tag ${pTag(c.platform)}">${pShort(c.platform)}</span>
         </div>
+        ${c.views?'<div style="font-size:10px;color:var(--text3);margin-top:4px">👁 '+c.views+' &nbsp;❤️ '+(c.likes||'0')+' &nbsp;💬 '+(c.comments||'0')+'</div>':''}
       </div>`).join('')}
     </div>`).join('');
 }
@@ -711,7 +712,47 @@ function openDetail(id) {
     <div class="brief-sec"><div class="brief-sec-title">📝 Skrip narasi</div><textarea class="dp-input" id="dp-skrip" oninput="scheduleAutoSave()" style="min-height:100px" placeholder="Tulis skrip...">${c.skrip||''}</textarea></div>
     <div class="dp-divider"></div>
     <div class="brief-sec"><div class="brief-sec-title">🔁 Revisi</div>${c.revisi?`<div style="background:var(--amber-bg);border-radius:8px;padding:10px 12px;font-size:13px;color:var(--amber-text);margin-bottom:8px">${c.revisi}</div>`:''}<textarea class="dp-input" id="dp-revisi" oninput="scheduleAutoSave()" placeholder="Catatan revisi...">${c.revisi||''}</textarea></div>
-    <div class="brief-sec"><div class="brief-sec-title">📊 Insight performa</div><input type="text" class="dp-input-line" id="dp-insight" oninput="scheduleAutoSave()" placeholder="TikTok/YT/Instagram insight..." value="${c.insight||''}"></div>
+    <div class="brief-sec">
+      <div class="brief-sec-title">🔗 Link Hasil Editan</div>
+      <div id="dp-result-links" style="margin-bottom:6px"></div>
+      <textarea class="dp-input" id="dp-result" oninput="scheduleAutoSave();renderLinks('dp-result','dp-result-links')" placeholder="Paste link hasil editan (Drive, YouTube, TikTok, dll)..." style="min-height:55px">${c.result||''}</textarea>
+    </div>
+    <div class="brief-sec">
+      <div class="brief-sec-title">🔗 Link Konten Published</div>
+      <div id="dp-publink-links" style="margin-bottom:6px"></div>
+      <textarea class="dp-input" id="dp-publink" oninput="scheduleAutoSave();renderLinks('dp-publink','dp-publink-links')" placeholder="Paste link TikTok / Instagram / YouTube setelah upload..." style="min-height:55px">${c.publink||''}</textarea>
+    </div>
+    <div class="brief-sec">
+      <div class="brief-sec-title">📊 Insight Performa</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
+        <div>
+          <label style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px">👁 Views</label>
+          <input type="text" class="dp-input-line" id="dp-views" oninput="scheduleAutoSave()" placeholder="0" value="${c.views||''}">
+        </div>
+        <div>
+          <label style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px">❤️ Likes</label>
+          <input type="text" class="dp-input-line" id="dp-likes" oninput="scheduleAutoSave()" placeholder="0" value="${c.likes||''}">
+        </div>
+        <div>
+          <label style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px">💬 Komentar</label>
+          <input type="text" class="dp-input-line" id="dp-comments" oninput="scheduleAutoSave()" placeholder="0" value="${c.comments||''}">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div>
+          <label style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px">🔁 Share</label>
+          <input type="text" class="dp-input-line" id="dp-shares" oninput="scheduleAutoSave()" placeholder="0" value="${c.shares||''}">
+        </div>
+        <div>
+          <label style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px">📌 Bookmark</label>
+          <input type="text" class="dp-input-line" id="dp-saves" oninput="scheduleAutoSave()" placeholder="0" value="${c.saves||''}">
+        </div>
+      </div>
+      <div style="margin-top:8px">
+        <label style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px">📝 Catatan insight</label>
+        <input type="text" class="dp-input-line" id="dp-insight" oninput="scheduleAutoSave()" placeholder="Catatan tambahan insight..." value="${c.insight||''}">
+      </div>
+    </div>
     <div id="dp-save-status" style="font-size:11px;color:var(--text3);text-align:center;padding:8px 0;height:28px"></div>
     <div style="height:20px"></div>`;
   document.getElementById('detail-overlay').classList.add('show');
@@ -736,9 +777,13 @@ async function saveDetail() {
     publish_date: currentContent.date || null,
     narsum: g('dp-narsum'), footage: g('dp-footage'), format: g('dp-format'),
     hook: g('dp-hook'), opening: g('dp-opening'), skrip: g('dp-skrip'),
-    revisi: g('dp-revisi'), insight: g('dp-insight'), updated_at: new Date().toISOString()
+    revisi: g('dp-revisi'), insight: g('dp-insight'),
+    result: g('dp-result'), publink: g('dp-publink'),
+    views: g('dp-views'), likes: g('dp-likes'), comments: g('dp-comments'),
+    shares: g('dp-shares'), saves: g('dp-saves'),
+    updated_at: new Date().toISOString()
   };
-  Object.assign(currentContent, { narsum:update.narsum, footage:update.footage, format:update.format, hook:update.hook, opening:update.opening, skrip:update.skrip, revisi:update.revisi, insight:update.insight });
+  Object.assign(currentContent, { narsum:update.narsum, footage:update.footage, format:update.format, hook:update.hook, opening:update.opening, skrip:update.skrip, revisi:update.revisi, insight:update.insight, result:update.result, publink:update.publink, views:update.views, likes:update.likes, comments:update.comments, shares:update.shares, saves:update.saves });
   const { error } = await updateContentField(currentContent.id, update);
   if (statusEl) {
     if (error) { statusEl.textContent = '✗ Gagal menyimpan'; statusEl.style.color = '#A32D2D'; }
@@ -770,6 +815,8 @@ function renderLinks(textareaId, containerId) {
 // Render links saat panel dibuka
 function renderAllLinks() {
   renderLinks('dp-footage', 'dp-footage-links');
+  renderLinks('dp-result', 'dp-result-links');
+  renderLinks('dp-publink', 'dp-publink-links');
 }
 
 async function saveOrder() {
